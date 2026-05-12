@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { parseCommand, summarizeResults } from '../agent/gemini.js';
+import { parseCommand, summarizeResult } from '../agent/gemini.js';
 import { executePlan } from '../agent/executor.js';
 
 const router = Router();
@@ -7,15 +7,15 @@ const router = Router();
 router.post('/command', async (req, res, next) => {
   try {
     const { command } = req.body;
-    if (!command || typeof command !== 'string') {
-      return res.status(400).json({ error: 'command is required' });
+    if (!command || typeof command !== 'string' || !command.trim()) {
+      return res.status(400).json({ error: 'command is required and must be a non-empty string' });
     }
 
-    const plan = await parseCommand(command);
-    const results = await executePlan(plan);
-    const summary = await summarizeResults(plan, results);
+    const plan = await parseCommand(command.trim());
+    const result = await executePlan(plan);
+    const summary = await summarizeResult(plan, result);
 
-    res.json({ plan, results, summary });
+    res.json({ plan, result, summary });
   } catch (err) {
     next(err);
   }

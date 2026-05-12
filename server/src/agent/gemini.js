@@ -1,46 +1,86 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+const MODEL = 'gemini-2.5-flash';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-const SYSTEM_PROMPT = `You are OpsAgent, an AI assistant for small business operations.
-You help business owners manage inventory, orders, and appointments.
-When given a natural language command, you:
-1. Identify the intent (query, create, update, delete)
-2. Identify the target collection (inventory, orders, appointments)
-3. Extract relevant parameters
-4. Return a structured JSON plan to execute
-
-Always respond with a JSON object in this format:
-{
-  "intent": "query|create|update|delete|summary",
-  "collection": "inventory|orders|appointments",
-  "parameters": { ... },
-  "explanation": "Brief explanation of what you will do"
-}`;
-
-export async function parseCommand(userCommand) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-  const prompt = `${SYSTEM_PROMPT}\n\nUser command: "${userCommand}"\n\nRespond ONLY with the JSON object, no markdown formatting.`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Agent could not parse command into a valid plan.');
-
-  return JSON.parse(jsonMatch[0]);
+function geminiUrl() {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 }
 
-export async function summarizeResults(plan, results) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+async function generate(prompt) {
+  const res = await fetch(geminiUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1 },
+    }),
+  });
 
-  const prompt = `You are OpsAgent. The user ran this operation:
-Plan: ${JSON.stringify(plan)}
-Results: ${JSON.stringify(results)}
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Gemini API error ${res.status}: ${err?.error?.message || res.statusText}`);
+  }
 
-Write a concise, friendly 1-2 sentence summary of what was done and the key findings. Plain text only.`;
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
 
-  const result = await model.generateContent(prompt);
-  return result.response.text().trim();
+const PARSE_PROMPT = `You are OpsAgent, an AI assistant for small business operations.
+Given a natural language command, respond ONLY with a single valid JSON object — no markdown, no code fences, no explanation.
+
+The JSON must have exactly these three fields:
+{
+  "intent": "read" | "create" | "update" | "delete" | "summary",
+  "collection": "inventory" | "orders" | "appointments",
+  "parameters": { ... }
+}
+
+Intent rules:
+- "read"    → fetch/show/list/find/get/search
+- "create"  → add/create/insert/new
+- "update"  → update/change/set/mark/edit
+- "delete"  → delete/remove/cancel
+- "summary" → summary/overview/stats/count/how many
+
+Parameters for each intent:
+- read:    filter fields (e.g. { "status": "pending" }) plus optional { "limit": N }
+- create:  all fields for the new document
+- update:  { "filter": { ...match fields... }, "update": { ...new values... } }
+- delete:  { "filter": { ...match fields... } }
+- summary: {} (empty)
+
+Collection schema hints:
+- inventory:    { name, quantity, unit, price, category }
+- orders:       { customerName, items, total, status ("pending"|"completed"|"cancelled") }
+- appointments: { customerName, service, date, time, status ("scheduled"|"completed"|"cancelled") }`;
+
+export async function parseCommand(userCommand) {
+  const text = await generate(`${PARSE_PROMPT}\n\nCommand: "${userCommand}"`);
+
+  const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Gemini did not return a valid JSON plan.');
+
+  let plan;
+  try {
+    plan = JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error('Gemini returned malformed JSON.');
+  }
+
+  if (!plan.intent || !plan.collection) {
+    throw new Error('Gemini plan is missing required fields.');
+  }
+
+  return plan;
+}
+
+export async function summarizeResult(plan, result) {
+  const prompt = `You are OpsAgent, a helpful business operations assistant.
+The user ran this operation and got these results:
+
+Intent: ${plan.intent}
+Collection: ${plan.collection}
+Result: ${JSON.stringify(result)}
+
+Write a concise, friendly 1-2 sentence plain-English summary of what happened. No markdown.`;
+
+  return (await generate(prompt)).trim();
 }

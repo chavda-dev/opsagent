@@ -39,7 +39,7 @@ export default function ResultPanel({ messages, loading }) {
             </div>
           );
         }
-        const { plan, results, summary } = msg.result;
+        const { plan, result, summary } = msg.result;
         return (
           <div key={i} className="message agent-msg">
             <span className="msg-label">OpsAgent</span>
@@ -51,7 +51,7 @@ export default function ResultPanel({ messages, loading }) {
                   <span className="badge intent">{plan.intent}</span>
                   <span className="badge collection">{plan.collection}</span>
                 </div>
-                <pre className="json-pre">{JSON.stringify(results, null, 2)}</pre>
+                <pre className="json-pre">{JSON.stringify(result, null, 2)}</pre>
               </div>
             </details>
           </div>

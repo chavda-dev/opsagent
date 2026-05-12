@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(npm install *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(npm run *)",
+      "Bash(node src/index.js)",
+      "Bash(curl -s -X POST http://localhost:3001/api/agent/command -H 'Content-Type: application/json' -d '{\"command\": \"show me all inventory items\"}')",
+      "Bash(curl.exe -s -X POST http://localhost:3001/api/agent/command -H \"Content-Type: application/json\" -d \"{\\\\\"command\\\\\": \\\\\"show me all inventory items\\\\\"}\")",
+      "Bash(node -e ' *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "PowerShell(Stop-Process -Name node -Force -ErrorAction SilentlyContinue)",
+      "Bash(curl.exe -s -X POST \"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyC8ChXzCrRoonb0cQdrJJM4My4NgmUYE_s\" -H \"Content-Type: application/json\" -d \"{\\\\\"contents\\\\\":[{\\\\\"parts\\\\\":[{\\\\\"text\\\\\":\\\\\"say hi\\\\\"}]}]}\")",
+      "Bash(curl.exe -s \"https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyC8ChXzCrRoonb0cQdrJJM4My4NgmUYE_s\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(m['name']\\) for m in data.get\\('models',[]\\)]\")"
     ]
   }
 }
