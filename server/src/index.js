@@ -4,7 +4,7 @@ import { join, dirname } from 'path';
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import express from 'express';
 import cors from 'cors';
-import { connectDB } from './db/client.js';
+import { connectDB, getDB } from './db/client.js';
 import agentRoutes from './routes/agent.js';
 import inventoryRoutes from './routes/inventory.js';
 import ordersRoutes from './routes/orders.js';
@@ -18,6 +18,15 @@ app.use(express.json());
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', async (_req, res) => {
+  try {
+    await getDB().command({ ping: 1 });
+    res.json({ status: 'ok', mongo: true });
+  } catch {
+    res.json({ status: 'degraded', mongo: false });
+  }
 });
 
 app.use('/api/agent', agentRoutes);
