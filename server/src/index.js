@@ -29,6 +29,35 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+app.get('/api/dashboard', async (_req, res, next) => {
+  try {
+    const db = getDB();
+    const [inventory, orders, appointments] = await Promise.all([
+      db.collection('inventory').find({}).toArray(),
+      db.collection('orders').find({}).toArray(),
+      db.collection('appointments').find({}).toArray(),
+    ]);
+
+    const today = new Date().toISOString().split('T')[0];
+    const totalInventoryValue = inventory.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0);
+    const lowStockItems = inventory.filter(i => Number(i.quantity) < 10);
+    const pendingOrders = orders.filter(o => o.status === 'pending');
+    const todayAppts = appointments.filter(a => (a.date || '').startsWith(today));
+    const recentOrders = [...orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 8);
+
+    res.json({
+      kpis: {
+        totalInventoryValue,
+        pendingOrders: pendingOrders.length,
+        todayAppointments: todayAppts.length,
+        lowStockCount: lowStockItems.length,
+      },
+      recentOrders,
+      lowStockAlerts: lowStockItems.sort((a, b) => Number(a.quantity) - Number(b.quantity)).slice(0, 8),
+    });
+  } catch (err) { next(err); }
+});
+
 app.use('/api/agent', agentRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', ordersRoutes);

@@ -1,54 +1,57 @@
-import { getDB } from '../db/client.js';
-import { ObjectId } from 'mongodb';
+import {
+  mcpFind,
+  mcpCount,
+  mcpInsertOne,
+  mcpUpdateMany,
+  mcpDeleteMany,
+} from '../mcp/tools.js';
 
 export async function executePlan(plan) {
-  const db = getDB();
-  const col = db.collection(plan.collection);
+  const col = plan.collection;
   const p = plan.parameters || {};
 
   switch (plan.intent) {
     case 'read': {
       const filter = buildFilter(p);
       const limit = p.limit ? parseInt(p.limit) : 100;
-      const docs = await col.find(filter).limit(limit).toArray();
-      return { docs, count: docs.length };
+      return await mcpFind(col, filter, limit);
     }
 
     case 'create': {
       const doc = buildDoc(p);
-      const result = await col.insertOne(doc);
-      return { insertedId: result.insertedId, doc };
+      return await mcpInsertOne(col, doc);
     }
 
     case 'update': {
       const filter = buildFilter(p.filter || {});
-      const updateFields = { ...(p.update || {}), updatedAt: new Date() };
-      const result = await col.updateMany(filter, { $set: updateFields });
-      return { matchedCount: result.matchedCount, modifiedCount: result.modifiedCount };
+      const updateFields = { ...(p.update || {}), updatedAt: new Date().toISOString() };
+      return await mcpUpdateMany(col, filter, { $set: updateFields });
     }
 
     case 'delete': {
       const filter = buildFilter(p.filter || p);
-      const result = await col.deleteMany(filter);
-      return { deletedCount: result.deletedCount };
+      return await mcpDeleteMany(col, filter);
     }
 
     case 'summary': {
-      const total = await col.countDocuments();
-      const recent = await col.find({}).sort({ createdAt: -1 }).limit(5).toArray();
+      const [total, { docs: recent }] = await Promise.all([
+        mcpCount(col),
+        mcpFind(col, {}, 5, { createdAt: -1 }),
+      ]);
 
-      // collection-specific aggregations
-      if (plan.collection === 'inventory') {
-        const lowStock = await col.countDocuments({ quantity: { $lt: 10 } });
+      if (col === 'inventory') {
+        const lowStock = await mcpCount(col, { quantity: { $lt: 10 } });
         return { total, lowStock, recent };
       }
-      if (plan.collection === 'orders') {
-        const pending = await col.countDocuments({ status: 'pending' });
-        const completed = await col.countDocuments({ status: 'completed' });
+      if (col === 'orders') {
+        const [pending, completed] = await Promise.all([
+          mcpCount(col, { status: 'pending' }),
+          mcpCount(col, { status: 'completed' }),
+        ]);
         return { total, pending, completed, recent };
       }
-      if (plan.collection === 'appointments') {
-        const scheduled = await col.countDocuments({ status: 'scheduled' });
+      if (col === 'appointments') {
+        const scheduled = await mcpCount(col, { status: 'scheduled' });
         return { total, scheduled, recent };
       }
       return { total, recent };
@@ -63,9 +66,7 @@ function buildFilter(params) {
   const filter = {};
   for (const [key, value] of Object.entries(params)) {
     if (key === 'limit') continue;
-    if (key === '_id') {
-      filter._id = new ObjectId(value);
-    } else if (typeof value === 'string' && /[*?]/.test(value)) {
+    if (typeof value === 'string' && /[*?]/.test(value)) {
       filter[key] = { $regex: value.replace(/\*/g, '.*').replace(/\?/g, '.'), $options: 'i' };
     } else {
       filter[key] = value;
@@ -80,6 +81,6 @@ function buildDoc(params) {
     if (key === 'limit') continue;
     doc[key] = value;
   }
-  doc.createdAt = new Date();
+  doc.createdAt = new Date().toISOString();
   return doc;
 }
