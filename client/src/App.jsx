@@ -17,13 +17,24 @@ import AppointmentsPage from './pages/AppointmentsPage.jsx';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return mobile;
+}
+
 export default function App() {
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const conn = useConnection();
   const lowStockCount = useLowStockAlerts();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
-  // Ctrl+` toggles terminal
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '`') {
@@ -42,30 +53,28 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#080810] text-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FA] text-[#111827] overflow-hidden">
       <Toaster
         position="top-right"
         toastOptions={{
-          style: { background: '#0e0e1a', border: '1px solid #1e1e30', color: '#e2e8f0', fontSize: 13 },
-          error: { iconTheme: { primary: '#ef4444', secondary: '#0e0e1a' } },
+          style: { background: '#ffffff', border: '1px solid #E5E7EB', color: '#111827', fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+          error: { iconTheme: { primary: '#EF4444', secondary: '#ffffff' } },
         }}
       />
 
-      {/* Sidebar */}
-      <Sidebar lowStockCount={lowStockCount} />
+      <Sidebar lowStockCount={lowStockCount} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main column */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <TopBar
           connStatus={conn}
           terminalOpen={terminalOpen}
           onToggleTerminal={() => setTerminalOpen(v => !v)}
           onReconnect={() => window.location.reload()}
+          onMenuOpen={() => setSidebarOpen(true)}
         />
 
-        {/* Page content + terminal side-by-side */}
         <div className="flex flex-1 overflow-hidden">
-          <main className="flex flex-1 overflow-hidden">
+          <main className="flex flex-1 overflow-hidden min-w-0">
             <Routes>
               <Route path="/"             element={<Dashboard />} />
               <Route path="/inventory"    element={<InventoryPage />} />
@@ -76,12 +85,12 @@ export default function App() {
             </Routes>
           </main>
 
-          {/* Agent Terminal panel */}
           <AnimatePresence>
-            {terminalOpen && (
+            {terminalOpen && !isMobile && (
               <motion.div
+                key="terminal-desktop"
                 initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 380, opacity: 1 }}
+                animate={{ width: 400, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ type: 'spring', damping: 30, stiffness: 280 }}
                 className="shrink-0 overflow-hidden"
@@ -92,6 +101,22 @@ export default function App() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Mobile terminal — full-screen slide-up */}
+      <AnimatePresence>
+        {terminalOpen && isMobile && (
+          <motion.div
+            key="terminal-mobile"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+            className="fixed inset-0 z-50 flex flex-col"
+          >
+            <AgentTerminal onDataChange={handleDataChange} onClose={() => setTerminalOpen(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

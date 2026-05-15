@@ -38,7 +38,9 @@
       "Bash(Test-Path \"c:\\\\Users\\\\Dev\\\\OneDrive\\\\Desktop\\\\Hackethon\\\\opsagent\\\\.env.example\")",
       "Bash(ls \"c:\\\\Users\\\\Dev\\\\OneDrive\\\\Desktop\\\\Hackethon\\\\opsagent\\\\\" | grep env)",
       "Read(//c/Users/Dev/OneDrive/Desktop/Hackethon/**)",
-      "Bash(cat > *)"
+      "Bash(cat > *)",
+      "PowerShell(taskkill /F /IM node.exe 2>&1)",
+      "PowerShell(exit 0)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Dev\\OneDrive\\Desktop\\Hackethon\\opsagent\\server\\src",

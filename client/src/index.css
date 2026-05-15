@@ -17,8 +17,8 @@ body {
 /* Thin custom scrollbar for data panel */
 .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: #2a2a40; border-radius: 2px; }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #3a3a55; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 2px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
 /* details/summary arrow reset */
 details > summary { list-style: none; }

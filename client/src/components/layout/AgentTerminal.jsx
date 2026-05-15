@@ -1,109 +1,119 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronRight } from 'lucide-react';
+import { Send, Sparkles, X } from 'lucide-react';
 import { sendCommand } from '../../api.js';
 
 const CHIPS = [
   { label: 'Low stock',      cmd: 'Show low stock items' },
   { label: 'Pending orders', cmd: 'Show pending orders' },
   { label: 'Summary',        cmd: 'Give me a business summary' },
-  { label: 'Appointments',   cmd: 'Show today\'s appointments' },
+  { label: 'Appointments',   cmd: "Show today's appointments" },
 ];
 
-function TerminalBlock({ entry }) {
+function ChatBubble({ entry }) {
   if (entry.type === 'command') {
     return (
-      <div className="flex items-start gap-2 py-1.5">
-        <ChevronRight size={12} className="text-indigo-400 mt-0.5 shrink-0" />
-        <span className="text-indigo-300 text-xs font-mono">{entry.text}</span>
+      <div className="flex justify-end mb-3">
+        <div className="max-w-[85%] bg-indigo-600 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm">
+          {entry.text}
+        </div>
       </div>
     );
   }
 
   if (entry.type === 'error') {
     return (
-      <div className="my-1 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
-        Error: {entry.text}
+      <div className="flex justify-start mb-3">
+        <div className="max-w-[85%] bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-2xl rounded-tl-sm">
+          {entry.text}
+        </div>
       </div>
     );
   }
 
-  // agent response
   const { summary, result, plan } = entry;
   const docs = result?.docs ?? [];
   const hasTable = docs.length > 0 && plan?.collection;
 
   const TABLE_COLS = {
     inventory:    ['name', 'quantity', 'unit', 'price'],
-    orders:       ['customerName', 'total', 'status', 'createdAt'],
-    appointments: ['customerName', 'service', 'date', 'status'],
+    orders:       ['customer', 'total', 'status', 'date'],
+    appointments: ['customer', 'purpose', 'date', 'status'],
   };
   const cols = hasTable ? (TABLE_COLS[plan.collection] ?? []) : [];
 
   return (
-    <div className="my-1.5 rounded-lg bg-[#0f0f1a] border border-[#1e1e30] overflow-hidden">
-      <div className="px-3 py-2 text-xs text-slate-300 font-mono leading-relaxed">
-        {summary}
-      </div>
+    <div className="flex justify-start mb-3">
+      <div className="max-w-[92%] flex flex-col gap-2">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center">
+            <Sparkles size={11} className="text-white" />
+          </div>
+          <span className="text-[11px] font-semibold text-[#6B7280]">OpsAgent</span>
+        </div>
 
-      {hasTable && docs.length > 0 && (
-        <div className="border-t border-[#1e1e30] overflow-x-auto">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="bg-[#0c0c14]">
-                {cols.map(c => (
-                  <th key={c} className="px-3 py-1.5 text-left text-slate-600 font-medium uppercase tracking-wide text-[9px]">
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {docs.slice(0, 8).map((row, i) => (
-                <tr key={i} className="border-t border-[#131320]">
-                  {cols.map(c => (
-                    <td key={c} className="px-3 py-1.5 text-slate-400 font-mono truncate max-w-[120px]">
-                      {c === 'status'
-                        ? <span className="text-amber-400">{row[c]}</span>
-                        : (c === 'price' || c === 'total')
-                          ? `$${Number(row[c] || 0).toFixed(2)}`
-                          : c === 'createdAt'
-                            ? new Date(row[c]).toLocaleDateString()
-                            : c === 'items' && Array.isArray(row[c])
-                              ? row[c].map(i => i.name).join(', ')
-                              : String(row[c] ?? '—')}
-                    </td>
+        <div className="bg-white border border-[#E5E7EB] text-[#374151] text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm">
+          {summary}
+        </div>
+
+        {hasTable && docs.length > 0 && (
+          <div className="bg-white border border-[#E5E7EB] rounded-xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-[#F8F9FA] border-b border-[#E5E7EB]">
+                    {cols.map(c => (
+                      <th key={c} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {docs.slice(0, 8).map((row, i) => (
+                    <tr key={i} className="border-t border-[#F3F4F6] hover:bg-[#F9FAFB]">
+                      {cols.map(c => (
+                        <td key={c} className="px-3 py-2 text-[#374151] truncate max-w-[120px]">
+                          {c === 'status'
+                            ? <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">{row[c]}</span>
+                            : (c === 'price' || c === 'total')
+                              ? `$${Number(row[c] || 0).toFixed(2)}`
+                              : c === 'items' && Array.isArray(row[c])
+                                ? row[c].map(i => i.name).join(', ')
+                                : String(row[c] ?? '—')}
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {docs.length > 8 && (
-            <p className="px-3 py-1.5 text-[10px] text-slate-600 border-t border-[#131320]">
-              +{docs.length - 8} more rows
-            </p>
-          )}
-        </div>
-      )}
+                </tbody>
+              </table>
+              {docs.length > 8 && (
+                <p className="px-3 py-2 text-[11px] text-[#9CA3AF] border-t border-[#F3F4F6]">
+                  +{docs.length - 8} more rows
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
-      {/* Summary stats (for summary intent) */}
-      {result && !hasTable && typeof result === 'object' && (
-        <div className="border-t border-[#1e1e30] px-3 py-2 flex flex-wrap gap-3">
-          {Object.entries(result)
-            .filter(([k]) => typeof result[k] !== 'object')
-            .map(([k, v]) => (
-              <div key={k} className="text-[10px]">
-                <span className="text-slate-600 uppercase tracking-wide">{k}</span>
-                <span className="ml-1.5 text-slate-300 font-mono font-semibold">{String(v)}</span>
-              </div>
-            ))}
-        </div>
-      )}
+        {result && !hasTable && typeof result === 'object' && (
+          <div className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 flex flex-wrap gap-4 shadow-sm">
+            {Object.entries(result)
+              .filter(([, v]) => typeof v !== 'object')
+              .map(([k, v]) => (
+                <div key={k}>
+                  <p className="text-[10px] text-[#9CA3AF] uppercase tracking-wide">{k}</p>
+                  <p className="text-sm font-semibold text-[#111827]">{String(v)}</p>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export default function AgentTerminal({ onDataChange }) {
+export default function AgentTerminal({ onDataChange, onClose }) {
   const [history, setHistory] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -135,49 +145,66 @@ export default function AgentTerminal({ onDataChange }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#09090f] border-l border-[#1a1a2e]">
+    <div className="flex flex-col h-full bg-[#F8F9FA] border-l border-[#E5E7EB]">
       {/* Header */}
-      <div className="shrink-0 flex items-center gap-2 px-3 h-10 border-b border-[#1a1a2e] bg-[#0c0c14]">
-        <div className="flex gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60" />
+      <div className="shrink-0 flex items-center gap-2.5 px-4 h-14 border-b border-[#E5E7EB] bg-white">
+        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <Sparkles size={13} className="text-white" />
         </div>
-        <span className="text-[11px] text-slate-500 font-mono ml-1">agent — ops terminal</span>
+        <div>
+          <p className="text-sm font-semibold text-[#111827] leading-none">AI Agent</p>
+          <p className="text-[10px] text-[#9CA3AF] mt-0.5">Ask anything about your operations</p>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-[#9CA3AF] hover:bg-[#F3F4F6] hover:text-[#6B7280] transition-all"
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
 
-      {/* History */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-2 font-mono">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
         {history.length === 0 && (
-          <p className="text-[11px] text-slate-700 py-4 text-center">
-            Type a command or pick a shortcut below
-          </p>
+          <div className="flex flex-col items-center justify-center h-full gap-3 pb-8">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+              <Sparkles size={22} className="text-indigo-500" />
+            </div>
+            <p className="text-sm font-medium text-[#374151]">How can I help you?</p>
+            <p className="text-xs text-[#9CA3AF] text-center max-w-[200px]">
+              Ask about inventory, orders, or appointments in plain English.
+            </p>
+          </div>
         )}
         {history.map(entry => (
-          <TerminalBlock key={entry.id} entry={entry} />
+          <ChatBubble key={entry.id} entry={entry} />
         ))}
         {loading && (
-          <div className="flex items-center gap-1.5 py-2 pl-1">
-            {[0, 1, 2].map(i => (
-              <span
-                key={i}
-                className="w-1 h-1 rounded-full bg-indigo-400 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
+          <div className="flex justify-start mb-3">
+            <div className="bg-white border border-[#E5E7EB] rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
+              {[0, 1, 2].map(i => (
+                <span
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
       {/* Quick chips */}
-      <div className="shrink-0 px-3 py-2 flex gap-1.5 flex-wrap border-t border-[#1a1a2e]">
+      <div className="shrink-0 px-4 py-2 flex gap-1.5 flex-wrap border-t border-[#E5E7EB] bg-white">
         {CHIPS.map(c => (
           <button
             key={c.label}
             onClick={() => run(c.cmd)}
             disabled={loading}
-            className="px-2.5 py-1 rounded-md text-[10px] font-medium border border-[#1e1e30] text-slate-500 hover:text-slate-300 hover:border-slate-600 hover:bg-white/5 transition-all disabled:opacity-40"
+            className="px-2.5 py-1 rounded-full text-[11px] font-medium border border-[#E5E7EB] text-[#6B7280] hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all disabled:opacity-40"
           >
             {c.label}
           </button>
@@ -185,24 +212,22 @@ export default function AgentTerminal({ onDataChange }) {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-[#1a1a2e]">
-        <ChevronRight size={12} className="text-indigo-400 shrink-0" />
+      <div className="shrink-0 flex items-center gap-2 px-3 py-3 border-t border-[#E5E7EB] bg-white">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={onKey}
           disabled={loading}
-          placeholder="Enter a command…"
-          className="flex-1 bg-transparent text-xs font-mono text-slate-200 placeholder-slate-700 outline-none disabled:opacity-40"
+          placeholder="Ask about your business…"
+          className="flex-1 bg-[#F3F4F6] border border-[#E5E7EB] rounded-xl px-4 py-2 text-sm text-[#111827] placeholder-[#9CA3AF] outline-none focus:border-indigo-300 focus:bg-white transition-all disabled:opacity-40"
         />
-        {input && (
-          <button
-            onClick={() => run()}
-            className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 rounded px-1.5 py-0.5"
-          >
-            Run
-          </button>
-        )}
+        <button
+          onClick={() => run()}
+          disabled={!input.trim() || loading}
+          className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+        >
+          <Send size={14} />
+        </button>
       </div>
     </div>
   );

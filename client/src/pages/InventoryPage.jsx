@@ -1,14 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Download, RefreshCcw } from 'lucide-react';
+import { Plus, Search, Download, RefreshCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchCollection } from '../api.js';
 import StatusBadge from '../components/shared/StatusBadge.jsx';
 import Drawer from '../components/shared/Drawer.jsx';
 
-const CATEGORIES = ['All', 'Dairy', 'Produce', 'Bakery', 'Meat', 'Beverages', 'Other'];
-
 function exportCSV(data) {
   if (!data.length) return;
-  const keys = ['name', 'quantity', 'unit', 'price', 'category'];
+  const keys = ['name', 'quantity', 'unit', 'price', 'category', 'supplier', 'status'];
   const rows = [keys.join(','), ...data.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))];
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -17,23 +15,26 @@ function exportCSV(data) {
   a.click();
 }
 
+const INPUT_CLS = 'w-full bg-[#F8F9FA] border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm text-[#111827] placeholder-[#9CA3AF] outline-none focus:border-indigo-400 focus:bg-white transition-all';
+
 function ItemForm({ initial = {}, onSave, onCancel, loading }) {
-  const [form, setForm] = useState({ name: '', quantity: '', unit: '', price: '', category: '', ...initial });
+  const [form, setForm] = useState({ name: '', quantity: '', unit: '', price: '', category: '', supplier: '', ...initial });
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const fields = [
-    { key: 'name',     label: 'Name',     type: 'text' },
-    { key: 'quantity', label: 'Quantity', type: 'number' },
-    { key: 'unit',     label: 'Unit',     type: 'text', placeholder: 'kg, units, liters…' },
-    { key: 'price',    label: 'Price ($)', type: 'number', step: '0.01' },
-    { key: 'category', label: 'Category', type: 'text' },
+    { key: 'name',     label: 'Item Name',  type: 'text' },
+    { key: 'quantity', label: 'Quantity',   type: 'number' },
+    { key: 'unit',     label: 'Unit',       type: 'text', placeholder: 'kg, units, liters…' },
+    { key: 'price',    label: 'Price ($)',  type: 'number', step: '0.01' },
+    { key: 'category', label: 'Category',   type: 'text' },
+    { key: 'supplier', label: 'Supplier',   type: 'text' },
   ];
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="p-5 flex flex-col gap-4">
+    <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="p-6 flex flex-col gap-4">
       {fields.map(f => (
         <div key={f.key}>
-          <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">{f.label}</label>
+          <label className="block text-xs font-semibold text-[#374151] mb-1.5">{f.label}</label>
           <input
             type={f.type}
             step={f.step}
@@ -41,7 +42,7 @@ function ItemForm({ initial = {}, onSave, onCancel, loading }) {
             value={form[f.key]}
             onChange={set(f.key)}
             required={f.key === 'name'}
-            className="w-full bg-[#131320] border border-[#1e1e30] rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-700 outline-none focus:border-indigo-500/50 focus:bg-[#15152a] transition-all"
+            className={INPUT_CLS}
           />
         </div>
       ))}
@@ -49,17 +50,31 @@ function ItemForm({ initial = {}, onSave, onCancel, loading }) {
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all disabled:opacity-50"
+          className="flex-1 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all disabled:opacity-50 shadow-sm"
         >
           {loading ? 'Saving…' : 'Save Item'}
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-[#1e1e30] text-slate-400 hover:text-slate-200 text-sm transition-all">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-5 py-2.5 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] text-sm transition-all"
+        >
           Cancel
         </button>
       </div>
     </form>
   );
 }
+
+const COLS = [
+  { key: 'name',     label: 'Item Name' },
+  { key: 'category', label: 'Category' },
+  { key: 'quantity', label: 'Stock' },
+  { key: 'unit',     label: 'Unit' },
+  { key: 'price',    label: 'Price' },
+  { key: 'supplier', label: 'Supplier' },
+  { key: 'status',   label: 'Status' },
+];
 
 export default function InventoryPage() {
   const [items, setItems] = useState([]);
@@ -76,8 +91,9 @@ export default function InventoryPage() {
     setLoading(true);
     fetchCollection('inventory').then(setItems).catch(console.error).finally(() => setLoading(false));
   };
-
   useEffect(load, []);
+
+  const categories = useMemo(() => ['All', ...Array.from(new Set(items.map(i => i.category).filter(Boolean))).sort()], [items]);
 
   const filtered = useMemo(() => {
     let list = items;
@@ -93,6 +109,11 @@ export default function InventoryPage() {
   const toggleSort = (key) => {
     if (sortKey === key) setSortAsc(v => !v);
     else { setSortKey(key); setSortAsc(true); }
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortKey !== col) return <ChevronUp size={11} className="text-[#D1D5DB]" />;
+    return sortAsc ? <ChevronUp size={11} className="text-indigo-500" /> : <ChevronDown size={11} className="text-indigo-500" />;
   };
 
   const handleAdd = async (form) => {
@@ -122,49 +143,52 @@ export default function InventoryPage() {
     finally { setSaving(false); }
   };
 
-  const COLS = [
-    { key: 'name',     label: 'Name' },
-    { key: 'quantity', label: 'Qty' },
-    { key: 'unit',     label: 'Unit' },
-    { key: 'price',    label: 'Price' },
-    { key: 'category', label: 'Category' },
-  ];
+  const lowCount = filtered.filter(r => Number(r.quantity) < 10).length;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Toolbar */}
-      <div className="shrink-0 flex items-center gap-3 px-6 py-4 border-b border-[#1a1a2e]">
-        <h1 className="text-sm font-semibold text-slate-200 mr-2">Inventory</h1>
+      <div className="shrink-0 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-[#E5E7EB] bg-white flex-wrap">
+        <div>
+          <h1 className="text-base font-bold text-[#111827]">Inventory</h1>
+          <p className="text-xs text-[#9CA3AF]">{filtered.length} items{lowCount > 0 ? ` · ${lowCount} low stock` : ''}</p>
+        </div>
 
-        <div className="flex items-center gap-2 flex-1 max-w-xs px-3 py-1.5 rounded-lg bg-[#131320] border border-[#1e1e30]">
-          <Search size={13} className="text-slate-600 shrink-0" />
+        <div className="flex items-center gap-2 flex-1 min-w-[140px] max-w-xs px-3 py-2 rounded-lg bg-[#F3F4F6] border border-[#E5E7EB] sm:ml-4">
+          <Search size={13} className="text-[#9CA3AF] shrink-0" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter items…"
-            className="flex-1 bg-transparent text-xs text-slate-200 placeholder-slate-700 outline-none"
+            className="flex-1 bg-transparent text-sm text-[#111827] placeholder-[#9CA3AF] outline-none"
           />
         </div>
 
         <select
           value={category}
           onChange={e => setCategory(e.target.value)}
-          className="bg-[#131320] border border-[#1e1e30] rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none cursor-pointer"
+          className="hidden sm:block bg-white border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm text-[#374151] outline-none cursor-pointer hover:border-[#D1D5DB] transition-all"
         >
-          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          {categories.map(c => <option key={c}>{c}</option>)}
         </select>
 
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => exportCSV(filtered)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1e1e30] text-slate-500 hover:text-slate-300 text-xs transition-all">
+          <button
+            onClick={() => exportCSV(filtered)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] text-xs font-medium transition-all"
+          >
             <Download size={12} />
             Export
           </button>
-          <button onClick={load} className="w-7 h-7 flex items-center justify-center rounded-lg border border-[#1e1e30] text-slate-500 hover:text-slate-300 transition-all">
+          <button
+            onClick={load}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] transition-all"
+          >
             <RefreshCcw size={12} />
           </button>
           <button
             onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all shadow-sm"
           >
             <Plus size={13} />
             Add Item
@@ -173,62 +197,81 @@ export default function InventoryPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto scrollbar-thin px-6 py-0">
+      <div className="flex-1 overflow-auto scrollbar-thin">
         {loading ? (
-          <div className="flex items-center justify-center h-40 text-slate-600 text-sm">Loading inventory…</div>
+          <div className="flex items-center justify-center h-48 text-[#9CA3AF] text-sm">Loading inventory…</div>
         ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-slate-600 text-sm">No items found</div>
+          <div className="flex items-center justify-center h-48 text-[#9CA3AF] text-sm">No items found</div>
         ) : (
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr>
+              <tr className="bg-[#F8F9FA] border-b border-[#E5E7EB]">
                 {COLS.map(({ key, label }) => (
                   <th
                     key={key}
-                    onClick={() => toggleSort(key)}
-                    className="sticky top-0 bg-[#0c0c14] text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 border-b border-[#1a1a2e] cursor-pointer hover:text-slate-300 select-none whitespace-nowrap z-10"
+                    onClick={() => key !== 'status' && toggleSort(key)}
+                    className={`px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#6B7280] select-none whitespace-nowrap ${key !== 'status' ? 'cursor-pointer hover:text-[#374151]' : ''}`}
                   >
-                    {label}
-                    {sortKey === key && <span className="ml-1">{sortAsc ? '↑' : '↓'}</span>}
+                    <span className="flex items-center gap-1">
+                      {label}
+                      {key !== 'status' && <SortIcon col={key} />}
+                    </span>
                   </th>
                 ))}
-                <th className="sticky top-0 bg-[#0c0c14] border-b border-[#1a1a2e] z-10" />
+                <th className="px-5 py-3 bg-[#F8F9FA]" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((item, i) => {
                 const low = Number(item.quantity) < 10;
+                const pct = Math.min(100, Math.round((Number(item.quantity) / (item.reorderLevel || 50)) * 100));
                 return (
                   <tr
                     key={item._id ?? i}
                     onClick={() => setEditItem(item)}
-                    className={`border-b border-[#12121e] cursor-pointer transition-colors ${
-                      low ? 'bg-red-500/[0.04] hover:bg-red-500/[0.07]' : 'hover:bg-white/[0.02]'
+                    className={`border-b border-[#F3F4F6] cursor-pointer transition-colors group ${
+                      low ? 'bg-red-50/50 hover:bg-red-50' : 'bg-white hover:bg-[#F8F9FA]'
                     }`}
                   >
-                    <td className="px-4 py-2.5 text-slate-200 text-xs font-medium">{item.name}</td>
-                    <td className="px-4 py-2.5 text-xs">
-                      <span className={low ? 'text-red-400 font-bold' : 'text-slate-300'}>{item.quantity}</span>
-                      {low && <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/25 uppercase">low</span>}
+                    <td className="px-5 py-3.5 text-[#111827] font-semibold text-sm">{item.name}</td>
+                    <td className="px-5 py-3.5">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F3F4F6] text-[#374151] border border-[#E5E7EB]">
+                        {item.category}
+                      </span>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500 text-xs">{item.unit}</td>
-                    <td className="px-4 py-2.5 text-slate-300 text-xs">${Number(item.price || 0).toFixed(2)}</td>
-                    <td className="px-4 py-2.5 text-xs">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] border border-[#1e1e30] text-slate-500">{item.category}</span>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-bold ${low ? 'text-red-600' : 'text-[#111827]'}`}>
+                            {item.quantity}
+                          </span>
+                          {low && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-600 border border-red-200 uppercase">
+                              low
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-16 h-1 bg-[#E5E7EB] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${pct < 30 ? 'bg-red-500' : pct < 60 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-700 text-xs text-right">Edit →</td>
+                    <td className="px-5 py-3.5 text-[#6B7280] text-sm">{item.unit}</td>
+                    <td className="px-5 py-3.5 text-[#374151] font-semibold">${Number(item.price || 0).toFixed(2)}</td>
+                    <td className="px-5 py-3.5 text-[#6B7280] text-sm">{item.supplier || '—'}</td>
+                    <td className="px-5 py-3.5">{item.status && <StatusBadge value={item.status} />}</td>
+                    <td className="px-5 py-3.5 text-[#9CA3AF] text-xs text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                      Edit →
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 px-6 py-2 border-t border-[#1a1a2e] flex items-center justify-between text-[11px] text-slate-600">
-        <span>{filtered.length} items</span>
-        <span className="text-red-500/70">{filtered.filter(r => Number(r.quantity) < 10).length} low stock</span>
       </div>
 
       {/* Add drawer */}

@@ -7,7 +7,7 @@ export async function connectDB() {
   if (db) return db;
   client = new MongoClient(process.env.MONGODB_URI);
   await client.connect();
-  db = client.db();
+  db = client.db('opsagent');
   console.log('Connected to MongoDB Atlas');
   return db;
 }

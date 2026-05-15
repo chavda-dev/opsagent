@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
-export default function Drawer({ open, onClose, title, children, width = 420 }) {
+export default function Drawer({ open, onClose, title, children, width = 440 }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     if (open) window.addEventListener('keydown', handler);
@@ -13,26 +13,27 @@ export default function Drawer({ open, onClose, title, children, width = 420 }) 
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40"
           />
-          {/* Panel */}
           <motion.div
             initial={{ x: width }}
             animate={{ x: 0 }}
             exit={{ x: width }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             style={{ width }}
-            className="fixed right-0 top-0 h-full bg-[#0e0e1a] border-l border-[#1e1e30] z-50 flex flex-col overflow-hidden"
+            className="fixed right-0 top-0 h-full bg-white border-l border-[#E5E7EB] z-50 flex flex-col overflow-hidden shadow-2xl"
           >
-            <div className="shrink-0 flex items-center justify-between px-5 h-14 border-b border-[#1e1e30]">
-              <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
-              <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-all">
+            <div className="shrink-0 flex items-center justify-between px-6 h-14 border-b border-[#E5E7EB]">
+              <h2 className="text-sm font-semibold text-[#111827]">{title}</h2>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#F3F4F6] text-[#9CA3AF] hover:text-[#374151] transition-all"
+              >
                 <X size={15} />
               </button>
             </div>
