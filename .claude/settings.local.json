@@ -37,10 +37,12 @@
       "Read(//c/Users/Dev/OneDrive/Desktop/Hackethon/opsagent/server/src/**)",
       "Bash(Test-Path \"c:\\\\Users\\\\Dev\\\\OneDrive\\\\Desktop\\\\Hackethon\\\\opsagent\\\\.env.example\")",
       "Bash(ls \"c:\\\\Users\\\\Dev\\\\OneDrive\\\\Desktop\\\\Hackethon\\\\opsagent\\\\\" | grep env)",
-      "Read(//c/Users/Dev/OneDrive/Desktop/Hackethon/**)"
+      "Read(//c/Users/Dev/OneDrive/Desktop/Hackethon/**)",
+      "Bash(cat > *)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\Dev\\OneDrive\\Desktop\\Hackethon\\opsagent\\server\\src"
+      "c:\\Users\\Dev\\OneDrive\\Desktop\\Hackethon\\opsagent\\server\\src",
+      "C:\\Users\\Dev\\OneDrive\\Desktop\\Hackethon\\opsagent\\client"
     ]
   }
 }
