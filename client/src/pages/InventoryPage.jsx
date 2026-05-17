@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Download, RefreshCcw, ChevronUp, ChevronDown } from 'lucide-react';
-import { fetchCollection } from '../api.js';
+import { Plus, Search, Download, RefreshCcw, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
+import { fetchCollection, searchInventory } from '../api.js';
 import StatusBadge from '../components/shared/StatusBadge.jsx';
 import Drawer from '../components/shared/Drawer.jsx';
 
@@ -86,6 +86,8 @@ export default function InventoryPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [aiResults, setAiResults] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -93,18 +95,41 @@ export default function InventoryPage() {
   };
   useEffect(load, []);
 
+  // Debounced AI search — fires 500ms after user stops typing
+  useEffect(() => {
+    if (!search.trim()) {
+      setAiResults(null);
+      setAiLoading(false);
+      return;
+    }
+    setAiLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await searchInventory(search.trim());
+        setAiResults(data.results ?? []);
+      } catch {
+        setAiResults(null); // fall back to local string filter on error
+      } finally {
+        setAiLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const categories = useMemo(() => ['All', ...Array.from(new Set(items.map(i => i.category).filter(Boolean))).sort()], [items]);
 
   const filtered = useMemo(() => {
-    let list = items;
-    if (search) list = list.filter(i => JSON.stringify(i).toLowerCase().includes(search.toLowerCase()));
+    // Use AI results when available; fall back to local string filter during debounce or on error
+    let list = aiResults !== null
+      ? aiResults
+      : (search ? items.filter(i => JSON.stringify(i).toLowerCase().includes(search.toLowerCase())) : items);
     if (category !== 'All') list = list.filter(i => i.category === category);
     return [...list].sort((a, b) => {
       const va = a[sortKey] ?? '', vb = b[sortKey] ?? '';
       const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
       return sortAsc ? cmp : -cmp;
     });
-  }, [items, search, category, sortKey, sortAsc]);
+  }, [aiResults, items, search, category, sortKey, sortAsc]);
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortAsc(v => !v);
@@ -151,17 +176,30 @@ export default function InventoryPage() {
       <div className="shrink-0 flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-[#E5E7EB] bg-white flex-wrap">
         <div>
           <h1 className="text-base font-bold text-[#111827]">Inventory</h1>
-          <p className="text-xs text-[#9CA3AF]">{filtered.length} items{lowCount > 0 ? ` · ${lowCount} low stock` : ''}</p>
+          <p className="text-xs text-[#9CA3AF]">
+            {filtered.length} items{lowCount > 0 ? ` · ${lowCount} low stock` : ''}
+            {aiResults !== null && <span className="ml-1.5 text-indigo-500 font-medium">· AI search</span>}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 min-w-[140px] max-w-xs px-3 py-2 rounded-lg bg-[#F3F4F6] border border-[#E5E7EB] sm:ml-4">
+        <div className={`flex items-center gap-2 flex-1 min-w-[140px] max-w-xs px-3 py-2 rounded-lg border sm:ml-4 transition-all ${
+          search ? 'bg-white border-indigo-300 ring-1 ring-indigo-100' : 'bg-[#F3F4F6] border-[#E5E7EB]'
+        }`}>
           <Search size={13} className="text-[#9CA3AF] shrink-0" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Filter items…"
-            className="flex-1 bg-transparent text-sm text-[#111827] placeholder-[#9CA3AF] outline-none"
+            placeholder="Search inventory…"
+            className="flex-1 bg-transparent text-sm text-[#111827] placeholder-[#9CA3AF] outline-none min-w-0"
           />
+          {aiLoading ? (
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin shrink-0" />
+          ) : (
+            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-500 border border-indigo-100 shrink-0 whitespace-nowrap">
+              <Sparkles size={8} />
+              AI
+            </span>
+          )}
         </div>
 
         <select

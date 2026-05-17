@@ -19,7 +19,8 @@ async function post(path, body) {
   return res.json();
 }
 
-export const sendCommand     = (command) => post('/agent/command', { command });
+export const sendCommand       = (command)          => post('/agent/command', { command });
+export const searchInventory   = (query)             => post('/search', { query, collection: 'inventory' });
 export const fetchCollection = (col)    => get(`/${col}`);
 export const fetchDashboard  = ()       => get('/dashboard');
 export const fetchAnalytics  = ()       => get('/analytics');

@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { connectDB, getDB } from './db/client.js';
 import agentRoutes from './routes/agent.js';
+import { parseSearchQuery } from './agent/gemini.js';
 import inventoryRoutes from './routes/inventory.js';
 import ordersRoutes from './routes/orders.js';
 import appointmentsRoutes from './routes/appointments.js';
@@ -60,6 +61,31 @@ app.get('/api/dashboard', async (_req, res, next) => {
       recentOrders,
       lowStockAlerts: lowStockItems.sort((a, b) => Number(a.quantity) - Number(b.quantity)).slice(0, 8),
     });
+  } catch (err) { next(err); }
+});
+
+app.post('/api/search', async (req, res, next) => {
+  try {
+    const { query, collection = 'inventory' } = req.body;
+    if (!query?.trim()) return res.json({ results: [], filter: {} });
+
+    const rawFilter = await parseSearchQuery(query.trim());
+
+    // Strip dangerous operators before hitting MongoDB
+    const BLOCKED = new Set(['$where', '$function', '$accumulator', '$expr', '$jsonSchema']);
+    function sanitize(obj, depth = 0) {
+      if (depth > 6 || typeof obj !== 'object' || obj === null) return obj;
+      const out = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (BLOCKED.has(k)) continue;
+        out[k] = typeof v === 'object' ? sanitize(v, depth + 1) : v;
+      }
+      return out;
+    }
+    const filter = sanitize(rawFilter);
+
+    const results = await getDB().collection(collection).find(filter).toArray();
+    res.json({ results, filter });
   } catch (err) { next(err); }
 });
 

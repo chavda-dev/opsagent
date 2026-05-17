@@ -1,5 +1,45 @@
 const MODEL = 'gemini-2.5-flash';
 
+const SEARCH_FILTER_PROMPT = `You are an inventory search assistant.
+Convert the user's natural language query into a MongoDB filter object.
+Respond ONLY with a valid JSON object — no markdown, no code fences, no explanation.
+
+Inventory document fields:
+- name (string): product name
+- category (string): "Dairy" | "Beverages" | "Grains & Pulses" | "Fruits & Vegetables" | "Bakery" | "Oils & Fats" | "Seafood"
+- quantity (number): current stock level
+- price (number): unit price in USD
+- supplier (string): supplier company name
+- status (string): "Active" | "Discontinued" | "Backordered"
+
+Rules:
+- Use { "$regex": "term", "$options": "i" } for case-insensitive string matching on name/category/supplier/status
+- Use { "$lt": N }, { "$lte": N }, { "$gt": N }, { "$gte": N } for numeric comparisons
+- "under $X" / "below $X" / "less than $X" → price: { "$lt": X }
+- "over $X" / "above $X" / "more than $X" → price: { "$gt": X }
+- "low stock" / "running low" → quantity: { "$lt": 10 }
+- "out of stock" → quantity: 0
+- If the query does not clearly map to any filter, return {}
+
+Examples:
+Query: "dairy items under $5"
+{"category": "Dairy", "price": {"$lt": 5}}
+
+Query: "low stock beverages"
+{"category": "Beverages", "quantity": {"$lt": 10}}
+
+Query: "items from Feedmix supplier"
+{"supplier": {"$regex": "Feedmix", "$options": "i"}}
+
+Query: "cheap grains under $2"
+{"category": "Grains & Pulses", "price": {"$lt": 2}}
+
+Query: "active seafood"
+{"category": "Seafood", "status": "Active"}
+
+Query: "backordered items"
+{"status": "Backordered"}`;
+
 function geminiUrl() {
   return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 }
@@ -70,6 +110,17 @@ export async function parseCommand(userCommand) {
   }
 
   return plan;
+}
+
+export async function parseSearchQuery(query) {
+  const text = await generate(`${SEARCH_FILTER_PROMPT}\n\nQuery: "${query}"`);
+  const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return {};
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return {};
+  }
 }
 
 export async function summarizeResult(plan, result) {
