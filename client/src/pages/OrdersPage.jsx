@@ -13,7 +13,7 @@ function exportCSV(orders) {
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'orders.csv';
+  a.download = 'orders-export.csv';
   a.click();
 }
 

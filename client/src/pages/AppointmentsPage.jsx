@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react';
-import { RefreshCcw, List, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, RefreshCcw, List, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchCollection } from '../api.js';
 import StatusBadge from '../components/shared/StatusBadge.jsx';
 import Drawer from '../components/shared/Drawer.jsx';
+
+function exportCSV(data) {
+  if (!data.length) return;
+  const keys = ['customer', 'purpose', 'date', 'time', 'status'];
+  const rows = [keys.join(','), ...data.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'appointments-export.csv';
+  a.click();
+}
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -79,6 +90,13 @@ export default function AppointmentsPage() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => exportCSV(appointments)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] text-xs font-medium transition-all"
+          >
+            <Download size={12} />
+            Export
+          </button>
           <button onClick={load} className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition-all">
             <RefreshCcw size={12} />
           </button>

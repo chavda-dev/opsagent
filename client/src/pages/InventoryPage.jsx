@@ -11,7 +11,7 @@ function exportCSV(data) {
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'inventory.csv';
+  a.download = 'inventory-export.csv';
   a.click();
 }
 
