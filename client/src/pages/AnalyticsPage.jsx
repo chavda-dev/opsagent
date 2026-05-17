@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchCollection } from '../api.js';
+import { fetchAnalytics } from '../api.js';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  LineChart, Line,
+  BarChart, Bar,
   PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -27,6 +28,8 @@ const STATUS_COLORS = {
   scheduled:  '#3B82F6',
 };
 
+const CAT_COLORS = ['#6366f1', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B'];
+
 function ChartCard({ title, subtitle, children }) {
   return (
     <div className="bg-white border border-[#E5E7EB] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
@@ -40,14 +43,14 @@ function ChartCard({ title, subtitle, children }) {
 }
 
 export default function AnalyticsPage() {
-  const [inv, setInv] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([fetchCollection('inventory'), fetchCollection('orders')])
-      .then(([i, o]) => { setInv(i); setOrders(o); })
-      .catch(console.error)
+    fetchAnalytics()
+      .then(setData)
+      .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -55,49 +58,23 @@ export default function AnalyticsPage() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex gap-1.5">
-          {[0,1,2].map(i => <span key={i} className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />)}
+          {[0, 1, 2].map(i => (
+            <span key={i} className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+          ))}
         </div>
       </div>
     );
   }
 
-  const statusCounts = Object.entries(
-    orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {})
-  ).map(([name, value]) => ({ name, value }));
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-sm text-red-500">
+        Failed to load analytics: {error}
+      </div>
+    );
+  }
 
-  const ordersByDate = Object.entries(
-    orders.reduce((acc, o) => {
-      const d = (o.date || o.createdAt)
-        ? new Date(o.date || o.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })
-        : 'Unknown';
-      acc[d] = (acc[d] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([date, count]) => ({ date, count })).slice(-14);
-
-  const lowStock = [...inv]
-    .filter(i => Number(i.quantity) < 20)
-    .sort((a, b) => Number(a.quantity) - Number(b.quantity))
-    .slice(0, 8)
-    .map(i => ({ name: i.name?.split(' ').slice(0, 2).join(' '), qty: Number(i.quantity) }));
-
-  const valueByCategory = Object.entries(
-    inv.reduce((acc, i) => {
-      const cat = i.category || 'Other';
-      acc[cat] = (acc[cat] || 0) + (Number(i.price) || 0) * (Number(i.quantity) || 0);
-      return acc;
-    }, {})
-  ).map(([category, value]) => ({ category, value: Math.round(value) }));
-
-  const revByDate = Object.entries(
-    orders.reduce((acc, o) => {
-      const d = (o.date || o.createdAt)
-        ? new Date(o.date || o.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })
-        : 'Unknown';
-      acc[d] = (acc[d] || 0) + (Number(o.total) || 0);
-      return acc;
-    }, {})
-  ).map(([date, revenue]) => ({ date, revenue: Math.round(revenue) })).slice(-14);
+  const { revenueByDay = [], ordersByStatus = [], inventoryByCategory = [], stockLevels = [] } = data ?? {};
 
   const axisStyle = { fill: '#9CA3AF', fontSize: 11 };
 
@@ -110,81 +87,73 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Orders over time */}
-          <ChartCard title="Orders Over Time" subtitle="Last 14 days">
+
+          {/* Revenue by day */}
+          <ChartCard title="Revenue by Day" subtitle="Last 30 days">
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={ordersByDate}>
-                <defs>
-                  <linearGradient id="ordGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.12} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} width={24} />
-                <Tooltip {...TOOLTIP_STYLE} />
-                <Area type="monotone" dataKey="count" stroke="#6366f1" fill="url(#ordGrad)" strokeWidth={2.5} dot={false} name="Orders" />
-              </AreaChart>
+              <LineChart data={revenueByDay}>
+                <XAxis dataKey="date" tick={axisStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} width={52} tickFormatter={v => `$${v}`} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={v => [`$${v}`, 'Revenue']} />
+                <Line type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} dot={false} name="Revenue" />
+              </LineChart>
             </ResponsiveContainer>
           </ChartCard>
 
           {/* Orders by status */}
-          <ChartCard title="Orders by Status" subtitle="Distribution">
+          <ChartCard title="Orders by Status" subtitle="Current distribution">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={statusCounts} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {statusCounts.map((entry, i) => (
+                <Pie
+                  data={ordersByStatus}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={78}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {ordersByStatus.map((entry, i) => (
                     <Cell key={i} fill={STATUS_COLORS[entry.name] ?? '#9CA3AF'} />
                   ))}
                 </Pie>
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Legend
                   wrapperStyle={{ fontSize: 11 }}
-                  formatter={(value) => <span style={{ color: '#6B7280' }}>{value}</span>}
+                  formatter={value => <span style={{ color: '#6B7280' }}>{value}</span>}
                 />
               </PieChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Revenue trend */}
-          <ChartCard title="Revenue Trend" subtitle="Order totals by day">
+          {/* Top 5 products by category */}
+          <ChartCard title="Top 5 Categories by Value" subtitle="Total inventory value ($)">
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={revByDate}>
-                <XAxis dataKey="date" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} width={48} tickFormatter={v => `$${v}`} />
-                <Tooltip {...TOOLTIP_STYLE} formatter={v => [`$${v}`, 'Revenue']} />
-                <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          {/* Low stock */}
-          <ChartCard title="Low Stock Items" subtitle="Items below 20 units">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={lowStock} layout="vertical">
-                <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={axisStyle} axisLine={false} tickLine={false} width={90} />
-                <Tooltip {...TOOLTIP_STYLE} />
-                <Bar dataKey="qty" name="Quantity" radius={[0, 4, 4, 0]}>
-                  {lowStock.map((entry, i) => (
-                    <Cell key={i} fill={entry.qty < 5 ? '#EF4444' : entry.qty < 10 ? '#F59E0B' : '#6366f1'} />
+              <BarChart data={inventoryByCategory}>
+                <XAxis dataKey="category" tick={{ ...axisStyle, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={axisStyle} axisLine={false} tickLine={false} width={56} tickFormatter={v => `$${v}`} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={v => [`$${v}`, 'Value']} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} name="Value">
+                  {inventoryByCategory.map((_, i) => (
+                    <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Inventory value by category */}
-          <ChartCard title="Inventory Value by Category" subtitle="Total stock value ($)">
+          {/* Stock levels — top 10 by quantity */}
+          <ChartCard title="Stock Levels" subtitle="Top 10 items by quantity">
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={valueByCategory}>
-                <XAxis dataKey="category" tick={{ ...axisStyle, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={axisStyle} axisLine={false} tickLine={false} width={52} tickFormatter={v => `$${v}`} />
-                <Tooltip {...TOOLTIP_STYLE} formatter={v => [`$${v}`, 'Value']} />
-                <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} name="Value" />
+              <BarChart data={stockLevels} layout="vertical">
+                <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={axisStyle} axisLine={false} tickLine={false} width={90} />
+                <Tooltip {...TOOLTIP_STYLE} />
+                <Bar dataKey="quantity" name="Quantity" radius={[0, 4, 4, 0]} fill="#10B981" />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
+
         </div>
       </div>
     </div>

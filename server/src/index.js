@@ -63,6 +63,59 @@ app.get('/api/dashboard', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+app.get('/api/analytics', async (_req, res, next) => {
+  try {
+    const db = getDB();
+    const [inventory, orders] = await Promise.all([
+      db.collection('inventory').find({}).toArray(),
+      db.collection('orders').find({}).toArray(),
+    ]);
+
+    // Revenue by day — last 30 days, sorted chronologically
+    const revMap = {};
+    orders.forEach(o => {
+      const raw = o.date || o.createdAt;
+      if (!raw) return;
+      const day = new Date(raw).toISOString().split('T')[0];
+      revMap[day] = (revMap[day] || 0) + (Number(o.total) || 0);
+    });
+    const revenueByDay = Object.entries(revMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30)
+      .map(([date, revenue]) => ({
+        date: new Date(date).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+        revenue: Math.round(revenue),
+      }));
+
+    // Orders by status
+    const statusMap = {};
+    orders.forEach(o => { statusMap[o.status] = (statusMap[o.status] || 0) + 1; });
+    const ordersByStatus = Object.entries(statusMap).map(([name, value]) => ({ name, value }));
+
+    // Top 5 inventory categories by total value
+    const catMap = {};
+    inventory.forEach(i => {
+      const cat = i.category || 'Other';
+      catMap[cat] = (catMap[cat] || 0) + (Number(i.price) || 0) * (Number(i.quantity) || 0);
+    });
+    const inventoryByCategory = Object.entries(catMap)
+      .map(([category, value]) => ({ category, value: Math.round(value) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    // Top 10 items by stock quantity
+    const stockLevels = [...inventory]
+      .sort((a, b) => Number(b.quantity) - Number(a.quantity))
+      .slice(0, 10)
+      .map(i => ({
+        name: (i.name || 'Unknown').split(' ').slice(0, 3).join(' '),
+        quantity: Number(i.quantity) || 0,
+      }));
+
+    res.json({ revenueByDay, ordersByStatus, inventoryByCategory, stockLevels });
+  } catch (err) { next(err); }
+});
+
 app.use('/api/agent', agentRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', ordersRoutes);
